@@ -47,3 +47,53 @@ export async function GET(
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }
+
+// ---------------- PUT (UPDATE) ----------------
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await connectDB();
+
+    const { id } = await params;
+
+    // get request body
+    const body = await request.json();
+
+    const { paymentStatus, name, email, phone, year, stay, transport } = body;
+
+    const updatedTicket = await Ticket.findByIdAndUpdate(
+      id,
+      {
+        ...(paymentStatus && { paymentStatus }),
+        ...(name && { name }),
+        ...(email && { email }),
+        ...(phone && { phone }),
+        ...(year && { year }),
+        ...(stay && { stay }),
+        ...(transport && { transport }),
+      },
+      { new: true } // return updated document
+    );
+
+    if (!updatedTicket) {
+      return NextResponse.json(
+        { success: false, message: "Ticket not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Ticket updated successfully",
+      ticket: updatedTicket,
+    });
+  } catch (error) {
+    console.error("PUT Error:", error);
+    return NextResponse.json(
+      { success: false, message: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}

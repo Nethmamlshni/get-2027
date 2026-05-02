@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import QRCode from "qrcode";
 import { useRouter } from "next/navigation";
 import { Bus, Home as HomeIcon, Mail, Phone, MessageSquare, ChevronRight } from "lucide-react";
 
@@ -106,11 +107,35 @@ const handleSubmit = async () => {
     const data = await res.json();
 
     if (res.ok && data.success) {
-      const params = new URLSearchParams(form).toString();
-      router.push(`/success?${params}`);
+      // Generate QR data
+      const qrPayload = {
+        name: form.name,
+        enrollmentNumber: form.enrollmentNumber,
+        year: form.year,
+        email: form.email,
+        phone: form.phone,
+        whatsapp: form.whatsapp,
+         transport: form.transport,
+        stay: form.stay,
+        paymentStatus: form.paymentStatus,
+        ticketId: data.ticketId || Date.now(),
+      };
+
+      // Convert to QR image
+      const qrCode = await QRCode.toDataURL(JSON.stringify(qrPayload));
+
+      // Save data + QR in session storage
+      sessionStorage.setItem(
+        "ticketData",
+        JSON.stringify({
+          ...form,
+          qrCode,
+        })
+      );
+
+      router.push("/success");
     } else {
-      // This will now alert "Email already registered!" or "Enrollment Number already registered!"
-      alert(data.message || "Failed to book ticket.");
+       alert(data.message || "Failed to book ticket.");
     }
   } catch (error) {
     console.error("Error submitting form:", error);

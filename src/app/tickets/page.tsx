@@ -5,6 +5,12 @@ import { Trash2, MessageSquare, CheckCircle, Bus, Home as HomeIcon, Users } from
 
 export default function TicketsPage() {
   const [tickets, setTickets] = useState<any[]>([]);
+ const [activeBtn, setActiveBtn] = useState<Record<string, string | null>>(() => {
+  if (typeof window !== "undefined") {
+    return JSON.parse(localStorage.getItem("activeBtn") || "{}");
+  }
+  return {};
+});
 
   const fetchTickets = async () => {
     try {
@@ -36,7 +42,7 @@ export default function TicketsPage() {
     y4: tickets.filter(t => t.year === "4").length,
 
     paymentStatus: {
-      paid: tickets.filter(t => t.paymentStatus === "Paid").length,
+      paid: tickets.filter(t => t.paymentStatus === "paid").length,
       notPaid: tickets.filter(t => t.paymentStatus === "notpaid").length,
     }
   };
@@ -63,12 +69,59 @@ export default function TicketsPage() {
   }
 };
 
-  const sendWhatsApp = (whatsapp: string, message: string) => {
-    let number = whatsapp.replace(/\D/g, "");
-    if (number.startsWith("0")) number = "94" + number.substring(1);
-    const url = `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
-    window.open(url, "_blank");
+  const handleWhatsAppClick = (
+  ticketId: string,
+  type: string,
+  whatsapp: string,
+  message: string
+) => {
+  const updated = {
+    ...activeBtn,
+    [ticketId]: type,
   };
+
+  setActiveBtn(updated);
+  localStorage.setItem("activeBtn", JSON.stringify(updated));
+
+  let number = whatsapp.replace(/\D/g, "");
+  if (number.startsWith("0")) number = "94" + number.substring(1);
+
+  const url = `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+  window.open(url, "_blank");
+};
+
+  const togglePaymentStatus = async (id: string, currentStatus: string) => {
+  const newStatus = currentStatus === "paid" ? "notpaid" : "paid";
+
+  try {
+    const res = await fetch(`/api/ticket/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ paymentStatus: newStatus }),
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      setTickets((prev) =>
+        prev.map((t) =>
+          t._id === id ? { ...t, paymentStatus: newStatus } : t
+        )
+      );
+    } else {
+      alert(data.message || "Update failed");
+    }
+  } catch (error) {
+    console.error("Update failed:", error);
+    alert("Error updating payment status");
+  }
+};
+const resetButtons = () => {
+  setActiveBtn({});
+  localStorage.removeItem("activeBtn");
+};
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-slate-800">
@@ -96,10 +149,15 @@ export default function TicketsPage() {
             {stats.y1}, {stats.y2}, {stats.y3}, {stats.y4}
           </p>
         </div>
-        <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-500">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Payment Status (Paid/notPaid)</p>
-          <p className="text-2xl font-black text-red-600">{stats.paymentStatus.paid} / {stats.paymentStatus.notPaid}</p>
-        </div>
+      <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-500">
+  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+    Payment Status (Paid / Not Paid)
+  </p>
+
+  <p className="text-2xl font-black text-red-600">
+    {stats.paymentStatus.paid} / {stats.paymentStatus.notPaid}
+  </p>
+</div>
       </div>
 
       {/* --- Tickets Table --- */}
@@ -134,10 +192,27 @@ export default function TicketsPage() {
                       <p className="text-xs font-bold">{ticket.phone}</p>
                     </td>
                     <td className="p-4">
-                      <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${ticket.paymentStatus === 'paid' ? 'bg-indigo-100 text-indigo-600' : 'bg-pink-100 text-pink-600'}`}>
-                        {ticket.paymentStatus}
-                      </span>
-                    </td>
+  <div className="flex items-center justify-center gap-2">
+
+    <span
+      className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${
+        ticket.paymentStatus === "paid"
+          ? "bg-indigo-100 text-indigo-600"
+          : "bg-pink-100 text-pink-600"
+      }`}
+    >
+      {ticket.paymentStatus}
+    </span>
+
+    <button
+      onClick={() => togglePaymentStatus(ticket._id, ticket.paymentStatus)}
+      className="text-[10px] px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 font-bold"
+    >
+      Payment
+    </button>
+
+  </div>
+</td>
                     <td className="p-4">
                       <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${ticket.stay === 'Hostel' ? 'bg-indigo-100 text-indigo-600' : 'bg-pink-100 text-pink-600'}`}>
                         {ticket.stay}
@@ -148,20 +223,37 @@ export default function TicketsPage() {
                     </td>
                     <td className="p-4">
                       <div className="flex justify-center gap-2">
+                 <button
+  onClick={() =>
+    handleWhatsAppClick(ticket._id, "msg", ticket.whatsapp, "Hiii!")
+  }
+  className={`p-2 rounded-lg transition-all ${
+    activeBtn[ticket._id] === "msg"
+      ? "bg-black text-white"
+      : "bg-green-100 text-green-600 hover:bg-green-600 hover:text-white"
+  }`}
+  title="Send Message"
+>
+  <MessageSquare size={16} />
+</button>
                         <button
-                          onClick={() => sendWhatsApp(ticket.whatsapp, "Hiii!")}
-                          className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all"
-                          title="Send Message"
-                        >
-                          <MessageSquare size={16} />
-                        </button>
-                        <button
-                          onClick={() => sendWhatsApp(ticket.whatsapp, "Your ticket booking is successful!")}
-                          className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all"
-                          title="Send Success"
-                        >
-                          <CheckCircle size={16} />
-                        </button>
+  onClick={() =>
+    handleWhatsAppClick(
+      ticket._id,
+      "success",
+      ticket.whatsapp,
+      "Your ticket booking is successful!"
+    )
+  }
+  className={`p-2 rounded-lg transition-all ${
+    activeBtn[ticket._id] === "success"
+      ? "bg-black text-white"
+      : "bg-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white"
+  }`}
+  title="Send Success"
+>
+  <CheckCircle size={16} />
+</button>
                         <button
                           onClick={() => deleteTicket(ticket._id)}
                           className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"
